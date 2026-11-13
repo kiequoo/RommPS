@@ -3,13 +3,17 @@
 # packages them (linting is lint.yml's job):
 #
 #   tests/steamdeck*.sh  the Deck's sync service on RetroDECK, EmuDeck and standalone layouts, against the mock RomM
-#   package.sh           rommdeck-<version>-x86_64.tar.gz and RommDeck-<version>-x86_64.AppImage
+#   package.sh           rommdeck-<version>-<arch>.tar.gz and RommDeck-<version>-<arch>.AppImage
 #                        (with its .zsync, for AppImageUpdate and Gear Lever),
 #                        RommDeck-Installer.desktop and rommdeck-installer.sh, plus
 #                        romm-sync-steamdeck (the service alone, for in-app updates)
 #   tests/steamdeck_install.sh  the installer, with that AppImage, against a fake release
 #
-# The packages end up as the artifact "steamdeck"; this workflow never touches
+# Builds for x86_64 and aarch64. x86_64 runs on ubuntu-latest; aarch64 runs on
+# ubuntu-24.04-arm (native, no qemu). The x86_64 artifact is named "steamdeck"
+# for backward compatibility with rommdeck-release.yml; aarch64 is "steamdeck-aarch64".
+#
+# The packages end up as the artifacts above; this workflow never touches
 # a release. ci.yml runs it on pushes and pull requests, rommdeck-release.yml
 # before publishing to s0liton/RommDeck.
 name: RommDeck
@@ -31,12 +35,29 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            platform: linux/amd64
+            appimagetool_url: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+            runtime_url: https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+            artifact: steamdeck
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            appimagetool_url: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-aarch64.AppImage
+            runtime_url: https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-aarch64
+            artifact: steamdeck-aarch64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
       VERSION: ${{ inputs.version }}
+      ARCH: ${{ matrix.arch }}
+      DECK_PLATFORM: ${{ matrix.platform }}
       # The tag tools/deck-build.sh runs; keep the two in step.
-      DECK_IMAGE: romm-sync-deck:6
+      DECK_IMAGE: romm-sync-deck-${{ matrix.arch }}:6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,10 +69,14 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: platform/steamdeck/app/docker
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            APPIMAGETOOL_URL=${{ matrix.appimagetool_url }}
+            RUNTIME_URL=${{ matrix.runtime_url }}
           tags: ${{ env.DECK_IMAGE }}
           load: true
-          cache-from: type=gha,scope=steamdeck
-          cache-to: type=gha,mode=max,scope=steamdeck,ignore-error=true
+          cache-from: type=gha,scope=steamdeck-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=steamdeck-${{ matrix.arch }},ignore-error=true
 
       - name: Build
         run: |
@@ -80,6 +105,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: steamdeck
+          name: ${{ matrix.artifact }}
           path: build/steamdeck/release/
           if-no-files-found: error
