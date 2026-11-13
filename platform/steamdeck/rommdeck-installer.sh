@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# RommDeck's installer, for the Steam Deck's Desktop Mode (or any x86_64 Linux
-# with a desktop). RommDeck-Installer.desktop fetches it from the latest
+# RommDeck's installer, for the Steam Deck's Desktop Mode (or any x86_64 or
+# aarch64 Linux with a desktop). RommDeck-Installer.desktop fetches it from the latest
 # release and runs it. It downloads that release's AppImage, checks it against
 # the release's SHA256SUMS, and installs it as ~/Applications/RommDeck.AppImage
 # with its background service, a menu entry and a Steam shortcut with artwork.
@@ -208,9 +208,11 @@ r = json.load(sys.stdin)
 if r.get("draft") or r.get("prerelease"):
     sys.exit("not a published release: " + r.get("tag_name", "?"))
 assets = {a["name"]: a for a in r.get("assets", [])}
-apps = [n for n in assets if re.fullmatch(r"RommDeck-[0-9A-Za-z.+-]+-x86_64\.AppImage", n)]
+import os
+arch = os.environ.get("ROMMDECK_ARCH", "x86_64")
+apps = [n for n in assets if re.fullmatch(r"RommDeck-[0-9A-Za-z.+-]+-" + re.escape(arch) + r"\.AppImage", n)]
 if len(apps) != 1 or "SHA256SUMS" not in assets:
-    sys.exit("no AppImage, or no SHA256SUMS, in " + r.get("tag_name", "?"))
+    sys.exit("no AppImage for " + arch + ", or no SHA256SUMS, in " + r.get("tag_name", "?"))
 a = assets[apps[0]]
 print(r["tag_name"], a["name"], a["browser_download_url"], a.get("size", 0), assets["SHA256SUMS"]["browser_download_url"])
 '
@@ -413,7 +415,9 @@ mkdir -p "$(dirname "$LOG")"
 echo "rommdeck-installer $(date -Is), from $RELEASE_URL" >"$LOG"
 trap finish EXIT
 [[ $EUID != 0 ]] || fail "Run the RommDeck installer as yourself, not as root."
-[[ "$(uname -m)" == x86_64 ]] || fail "RommDeck needs an x86_64 machine, like the Steam Deck."
+ROMMDECK_ARCH="$(uname -m)"
+export ROMMDECK_ARCH
+[[ "$ROMMDECK_ARCH" == x86_64 || "$ROMMDECK_ARCH" == aarch64 ]] || fail "RommDeck needs an x86_64 or aarch64 machine."
 if [[ -e $APPIMAGE || -e $UNIT || -e $DEST/rommdeck ]]; then
     choose "RommDeck is installed. Update it to the latest release, or uninstall it?" "Update" "Uninstall"
     case $CHOICE in

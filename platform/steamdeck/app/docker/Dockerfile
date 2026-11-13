@@ -28,6 +28,8 @@ ENV CMAKE_PREFIX_PATH=/opt/sdl3
 # appimagetool and the AppImage runtime, pinned and unpacked, so packaging
 # runs without FUSE and downloads nothing. appimagetool brings its own
 # zsyncmake for the .zsync, and checks the metainfo with appstreamcli (above).
+# For arm64: pass --build-arg APPIMAGETOOL_URL=.../appimagetool-aarch64.AppImage
+#            and --build-arg RUNTIME_URL=.../runtime-aarch64 (and build --platform linux/arm64).
 ARG APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
 ARG RUNTIME_URL=https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 RUN curl -fsSL -o /tmp/appimagetool "$APPIMAGETOOL_URL" \
@@ -36,4 +38,4 @@ RUN curl -fsSL -o /tmp/appimagetool "$APPIMAGETOOL_URL" \
     && mv /opt/squashfs-root /opt/appimagetool \
     && ln -s /opt/appimagetool/AppRun /usr/local/bin/appimagetool \
     && rm /tmp/appimagetool \
-    && curl -fsSL -o /opt/appimage-runtime-x86_64 "$RUNTIME_URL"
+    && curl -fsSL -o /opt/appimage-runtime "$RUNTIME_URL"
